@@ -38,7 +38,7 @@ If you still want this route, use these settings in hPanel -> Websites -> Add No
 | Application type  | Express (or Other)                       |
 | Node.js version   | 22                                       |
 | Root directory    | `/`                                      |
-| Build script      | `build`                                  |
+| Build script      | `build` (if offered; else server.mjs builds on first boot) |
 | Output directory  | _(empty)_                                |
 | Entry file        | `server.mjs`                             |
 | Package manager   | npm                                      |
