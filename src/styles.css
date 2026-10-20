@@ -1,0 +1,639 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+@import 'shadcn/tailwind.css';
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Tailwind is the utility API for Doop's existing design system. Keep the
+   semantic CSS variables below as the source of truth while the legacy
+   component rules are migrated incrementally. */
+@theme inline {
+  --color-paper: var(--paper);
+  --color-paper-deep: var(--paper-deep);
+  --color-surface: var(--surface);
+  --color-ink: var(--ink);
+  --color-ink-soft: var(--ink-soft);
+  --color-ink-faint: var(--ink-faint);
+  --color-line: var(--line);
+  --color-line-soft: var(--line-soft);
+  --color-brand: var(--brand);
+  --color-accent-ink: var(--accent-ink);
+  --color-dot: var(--dot);
+  --color-success: var(--success);
+  --color-success-ink: var(--success-ink);
+  --color-warning: var(--warning);
+  --color-warning-ink: var(--warning-ink);
+  --font-ui: var(--font-ui);
+  --font-display: var(--font-display);
+  --font-mono: var(--font-mono);
+  --font-serif: var(--font-serif);
+  --shadow-card: var(--shadow-card);
+  --shadow-pop: var(--shadow-pop);
+  --shadow-elevation-1: var(--shadow-elevation-1);
+  --shadow-elevation-1-hover: var(--shadow-elevation-1-hover);
+  --shadow-elevation-1-focus: var(--shadow-elevation-1-focus);
+  --shadow-elevation-2: var(--shadow-elevation-2);
+  /* Named motion: Penner curves as `ease-out-quad` etc. Durations are
+     `duration-instant` … `duration-slow` (defined as utilities below). */
+  --ease-out-quad: var(--ease-out-quad);
+  --ease-out-cubic: var(--ease-out-cubic);
+  --ease-out-quint: var(--ease-out-quint);
+  --ease-in-out-quad: var(--ease-in-out-quad);
+  --ease-in-out-cubic: var(--ease-in-out-cubic);
+  --breakpoint-xs: 30rem;
+  /* Doop's mobile boundary, in one place. `md:` is the switch between the
+     phone layout and the desktop one, and useIsMobile() matches the same
+     900px in JS — keep the two in step or the canvas will render its mobile
+     sheets while the page is still in its desktop layout. */
+  --breakpoint-md: 56.25rem;
+  --font-heading: var(--font-display);
+  --font-sans: var(--font-ui);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --color-foreground: var(--foreground);
+  --color-background: var(--background);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+:root {
+  color-scheme: light;
+  /* Warm paper, not cold white: --paper is the backdrop, --surface the raised
+     layer. They stay one step apart so panels and cards keep their edge. */
+  --paper: #fdfdfc;
+  --paper-deep: #f1efea;
+  --surface: #ffffff;
+  --ink: #111110;
+  --ink-soft: #6e6b66;
+  --ink-faint: #9a968e;
+  --line: #d9d6cf;
+  --line-soft: #ebe9e4;
+  /* Cursor blue is the one accent: selection, presence, the live-agent
+     signal. Red is no longer the brand — it only means "something failed",
+     which is what --accent-ink now carries. */
+  --brand: #2743ee;
+  --accent-ink: #d0341f;
+  --dot: #ebe9e4;
+  /* Status: the fill (--success, --warning) tints and dots, the ink variant
+     is text that sits on paper. Both flip with the theme. */
+  --success: #3f9c52;
+  --success-ink: #1e7a4c;
+  --warning: #ffb800;
+  --warning-ink: #8a5b00;
+  --font-ui: 'Instrument Sans', sans-serif;
+  /* Display is the SAME sans as the UI — the chrome is quiet by design.
+     Editorial serif is opt-in per element via `font-serif`, reserved for
+     page-level headlines, never for labels or controls. */
+  --font-display: 'Instrument Sans', sans-serif;
+  --font-serif: 'Instrument Serif', Georgia, serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+  /* Hairline system: elevation reads through borders, so shadows only lift
+     a surface off the page rather than drawing it. */
+  --shadow-card: 0 1px 2px rgba(17, 17, 16, 0.04), 0 10px 28px -18px rgba(17, 17, 16, 0.18);
+  --shadow-pop: 0 2px 6px rgba(17, 17, 16, 0.06), 0 22px 56px -26px rgba(17, 17, 16, 0.24);
+  /* Elevation: no CSS border — the edge is a half-pixel shadow ring, so a
+     hairline reads as part of the lift rather than a drawn outline. -1 is a
+     resting surface (with a hover and a focus step), -2 is a floating one. */
+  --shadow-elevation-1:
+    0 0 0 0.5px rgba(0, 0, 0, 0.07), 0 2px 3px -2px rgba(0, 0, 0, 0.1), 0 3px 12px -4px rgba(0, 0, 0, 0.1),
+    0 4px 16px -8px rgba(0, 0, 0, 0.1);
+  --shadow-elevation-1-hover:
+    0 0 0 0.5px rgba(0, 0, 0, 0.07), 0 5px 7px -2px rgba(0, 0, 0, 0.1), 0 7px 20px -4px rgba(0, 0, 0, 0.1),
+    0 7px 28px -8px rgba(0, 0, 0, 0.1);
+  --shadow-elevation-1-focus:
+    0 0 0 0.5px rgba(0, 0, 0, 0.07), 0 0 0 3px color-mix(in srgb, var(--brand) 24%, transparent),
+    0 2px 3px -2px rgba(0, 0, 0, 0.1), 0 3px 12px -4px rgba(0, 0, 0, 0.1);
+  --shadow-elevation-2:
+    0 0 0 0.5px rgba(0, 0, 0, 0.08), 0 8px 12px -4px rgba(0, 0, 0, 0.1), 0 16px 32px -8px rgba(0, 0, 0, 0.14),
+    0 24px 56px -16px rgba(0, 0, 0, 0.18);
+  /* Motion: Penner easing curves and a named duration scale. */
+  --ease-out-quad: cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  --ease-out-cubic: cubic-bezier(0.215, 0.61, 0.355, 1);
+  --ease-out-quint: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out-quad: cubic-bezier(0.455, 0.03, 0.515, 0.955);
+  --ease-in-out-cubic: cubic-bezier(0.645, 0.045, 0.355, 1);
+  --duration-instant: 0.05s;
+  --duration-micro: 0.1s;
+  --duration-fast: 0.15s;
+  --duration-normal: 0.2s;
+  --duration-slow: 0.3s;
+  --duration-slower: 0.45s;
+  --background: var(--paper);
+  --foreground: var(--ink);
+  --card: var(--surface);
+  --card-foreground: var(--ink);
+  --popover: var(--surface);
+  --popover-foreground: var(--ink);
+  --primary: var(--brand);
+  --primary-foreground: #fff;
+  --secondary: var(--paper-deep);
+  --secondary-foreground: var(--ink);
+  --muted: var(--paper-deep);
+  --muted-foreground: var(--ink-soft);
+  --accent: var(--paper-deep);
+  --accent-foreground: var(--ink);
+  --destructive: var(--accent-ink);
+  --border: var(--line);
+  --input: var(--line);
+  --ring: var(--ink-faint);
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
+  /* Tighter than before: the editorial system reads as drawn with a ruler,
+     so corners are softened rather than rounded. */
+  --radius: 0.5rem;
+  --sidebar: var(--surface);
+  --sidebar-foreground: var(--ink);
+  --sidebar-primary: var(--brand);
+  --sidebar-primary-foreground: #fff;
+  --sidebar-accent: var(--paper-deep);
+  --sidebar-accent-foreground: var(--ink);
+  --sidebar-border: var(--line);
+  --sidebar-ring: var(--ink-faint);
+}
+
+/* Base layer: the resets and defaults every screen inherits. Everything that
+   used to live below this line — some 6,800 lines of component rules — now
+   lives in src/components/ui as real components. */
+/* Duration utilities read the named scale above (Tailwind has no theme
+   namespace for durations), and `corner-squircle` is the superellipse
+   corner used on tiles and cards — browsers without corner-shape fall back
+   to the plain radius. */
+@utility duration-instant {
+  transition-duration: var(--duration-instant);
+}
+@utility duration-micro {
+  transition-duration: var(--duration-micro);
+}
+@utility duration-fast {
+  transition-duration: var(--duration-fast);
+}
+@utility duration-normal {
+  transition-duration: var(--duration-normal);
+}
+@utility duration-slow {
+  transition-duration: var(--duration-slow);
+}
+@utility duration-slower {
+  transition-duration: var(--duration-slower);
+}
+@utility corner-squircle {
+  corner-shape: superellipse(1.4);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+  * {
+    margin: 0;
+  }
+  /* The app fills the viewport and scrolls inside its own panes — the page
+     itself never scrolls, so the canvas can own the whole screen. */
+  html,
+  body,
+  #root {
+    height: 100%;
+    /* trackpad swipes must never turn into browser back/forward navigation
+       (spec reads this off html, Chrome historically off body — set both) */
+    overscroll-behavior: none;
+  }
+  body {
+    @apply bg-background font-sans text-foreground;
+    overflow: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+  html {
+    @apply font-sans;
+    -webkit-text-size-adjust: 100%;
+  }
+  ::selection {
+    background: color-mix(in srgb, var(--brand) 18%, transparent);
+  }
+  button:not(:disabled),
+  [role='button']:not(:disabled) {
+    cursor: pointer;
+  }
+  input,
+  textarea,
+  select,
+  button {
+    font-family: inherit;
+  }
+}
+
+.dark {
+  color-scheme: dark;
+  /* Warm charcoal, not OLED black: the same three layers as the light paper,
+     one step apart, so panels keep their edge in the dark. The shadcn tokens
+     above resolve through these, so only the primitives are redefined. */
+  --paper: #141413;
+  --paper-deep: #191918;
+  --surface: #20201e;
+  --ink: #f4f3ef;
+  --ink-soft: #a6a39b;
+  --ink-faint: #706d66;
+  --line: rgba(255, 255, 255, 0.12);
+  --line-soft: rgba(255, 255, 255, 0.07);
+  --dot: rgba(255, 255, 255, 0.07);
+  /* Cursor blue lifted for luminance on a dark ground; the failure red is
+     softened the same way. */
+  --brand: #4a6bff;
+  --accent-ink: #ff5c47;
+  --success: #4caf60;
+  --success-ink: #6fd08e;
+  --warning: #ffb800;
+  --warning-ink: #e6b04a;
+  /* Dark surfaces cannot lift on shadow alone: each tier keeps a half-pixel
+     light-catch ring on top of a deeper ambient drop. */
+  --shadow-card:
+    0 0 0 0.5px rgba(255, 255, 255, 0.08), 0 2px 4px rgba(0, 0, 0, 0.35), 0 12px 28px -14px rgba(0, 0, 0, 0.55);
+  --shadow-pop:
+    0 0 0 0.5px rgba(255, 255, 255, 0.11), 0 4px 12px rgba(0, 0, 0, 0.45), 0 24px 56px -16px rgba(0, 0, 0, 0.75);
+  --shadow-elevation-1:
+    0 0 0 0.5px rgba(255, 255, 255, 0.09), 0 2px 4px -1px rgba(0, 0, 0, 0.35), 0 4px 14px -3px rgba(0, 0, 0, 0.4);
+  --shadow-elevation-1-hover:
+    0 0 0 0.5px rgba(255, 255, 255, 0.14), 0 6px 10px -2px rgba(0, 0, 0, 0.4), 0 10px 24px -4px rgba(0, 0, 0, 0.55);
+  --shadow-elevation-1-focus:
+    0 0 0 0.5px rgba(255, 255, 255, 0.12), 0 0 0 3px color-mix(in srgb, var(--brand) 32%, transparent),
+    0 2px 4px -1px rgba(0, 0, 0, 0.35), 0 4px 14px -3px rgba(0, 0, 0, 0.4);
+  --shadow-elevation-2:
+    0 0 0 0.5px rgba(255, 255, 255, 0.11), 0 8px 16px -4px rgba(0, 0, 0, 0.5), 0 20px 40px -10px rgba(0, 0, 0, 0.65),
+    0 32px 64px -18px rgba(0, 0, 0, 0.8);
+}
+
+/* Keyframes: the one thing utilities cannot express. Components reference
+   these by name (`animate-[chip-in_0.18s_ease]`), so the names are API —
+   renaming one means updating its callers. */
+@keyframes skeleton-pulse {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes agent-pulse {
+  0% {
+    transform: scale(0.8);
+    opacity: 0.7;
+  }
+  70% {
+    transform: scale(1.15);
+    opacity: 0;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes chip-in {
+  from {
+    transform: translateY(4px);
+    opacity: 0;
+  }
+}
+
+@keyframes stream-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+@keyframes ellipsis {
+  0% {
+    content: '';
+  }
+  25% {
+    content: '.';
+  }
+  50% {
+    content: '..';
+  }
+  75% {
+    content: '…';
+  }
+}
+
+@keyframes frame-flash {
+  0% {
+    box-shadow: inset 0 0 0 3px var(--editing-color, var(--brand));
+    opacity: 1;
+  }
+  100% {
+    box-shadow: inset 0 0 0 3px var(--editing-color, var(--brand));
+    opacity: 0;
+  }
+}
+
+@keyframes ghost-pulse {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes modal-in {
+  from {
+    transform: translateY(14px) scale(0.98);
+    opacity: 0;
+  }
+}
+
+@keyframes status-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(0.6);
+    opacity: 0.5;
+  }
+}
+
+@keyframes lp-rise {
+  from {
+    opacity: 0;
+    transform: translateY(5vw);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes lp-ink-flow {
+  to {
+    background-position:
+      0 0,
+      320% 0;
+  }
+}
+
+@keyframes lp-blink {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+@keyframes lp-appear {
+  0% {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  6% {
+    opacity: 1;
+    transform: none;
+  }
+  92% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes lp-drift-a {
+  0%,
+  100% {
+    transform: translate(0, 0);
+  }
+  30% {
+    transform: translate(-60px, 40px);
+  }
+  65% {
+    transform: translate(24px, 90px);
+  }
+}
+
+@keyframes lp-drift-b {
+  0%,
+  100% {
+    transform: translate(0, 0);
+  }
+  40% {
+    transform: translate(-90px, 120px);
+  }
+  75% {
+    transform: translate(-30px, 30px);
+  }
+}
+
+@keyframes sp-reveal {
+  0% {
+    box-shadow:
+      0 0 0 1.5px rgba(30, 122, 76, 0.7),
+      0 0 16px rgba(30, 122, 76, 0.45);
+  }
+  100% {
+    box-shadow: var(--shadow-card);
+  }
+}
+
+@keyframes sp-land {
+  0% {
+    opacity: 0;
+    transform: translateY(10px) scale(0.92);
+    box-shadow: 0 0 0 2px rgba(229, 83, 60, 0);
+  }
+  45% {
+    opacity: 1;
+    box-shadow:
+      0 0 0 2px rgba(229, 83, 60, 0.5),
+      0 0 16px rgba(229, 83, 60, 0.3);
+  }
+  100% {
+    opacity: 1;
+    transform: none;
+    box-shadow: 0 0 0 2px rgba(229, 83, 60, 0);
+  }
+}
+
+@keyframes sp-land-crooked {
+  0% {
+    opacity: 0;
+    transform: translateY(12px) scale(0.92);
+  }
+  45% {
+    opacity: 1;
+    box-shadow:
+      0 0 0 2px rgba(229, 83, 60, 0.5),
+      0 0 16px rgba(229, 83, 60, 0.3);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(8px) rotate(1.8deg);
+    box-shadow: 0 0 0 2px rgba(229, 83, 60, 0);
+  }
+}
+
+@keyframes sp-caret {
+  0% {
+    opacity: 0;
+    top: 18px;
+  }
+  4% {
+    opacity: 1;
+  }
+  12% {
+    top: 36px;
+  }
+  24% {
+    top: 72px;
+  }
+  36% {
+    top: 92px;
+  }
+  62% {
+    top: 220px;
+  }
+  76% {
+    top: 252px;
+  }
+  90% {
+    top: 282px;
+    opacity: 1;
+  }
+  100% {
+    top: 282px;
+    opacity: 0;
+  }
+}
+
+@keyframes sp-flash {
+  18% {
+    opacity: 0.75;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes sp-shot {
+  0% {
+    opacity: 0;
+    transform: rotate(8deg) translateY(10px) scale(0.75);
+  }
+  12% {
+    opacity: 1;
+    transform: rotate(3deg) translateY(0) scale(1);
+  }
+  82% {
+    opacity: 1;
+    transform: rotate(3deg) translateY(0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: rotate(1deg) translateY(-6px) scale(0.96);
+  }
+}
+
+@keyframes sp-snap {
+  0% {
+    opacity: 1;
+    transform: translateY(8px) rotate(1.8deg);
+    box-shadow: 0 0 0 2px rgba(229, 83, 60, 0.6);
+  }
+  100% {
+    opacity: 1;
+    transform: none;
+    box-shadow: 0 0 0 2px rgba(30, 122, 76, 0);
+  }
+}
+
+@keyframes sp-pop {
+  0% {
+    opacity: 0;
+    transform: translateY(16px) scale(0.95);
+  }
+  100% {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes sp-scan {
+  30% {
+    transform: translate(-180px, 60px);
+  }
+  62% {
+    transform: translate(-70px, 140px);
+  }
+}
+
+@keyframes sp-say-in {
+  0% {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+  100% {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes arrival-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.35;
+    transform: scale(0.7);
+  }
+}
