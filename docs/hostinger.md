@@ -27,8 +27,9 @@ These plans can boot doop, but two platform limits apply:
   Cloud plans. doop's realtime room (`/ws`: cursors, presence, live frame edits, agent
   streaming) will not connect, so the canvas loses its multiplayer and live-update features.
 - **No PostgreSQL.** Web and Cloud plans offer MySQL only. Use an external Postgres (Neon,
-  Supabase, ...) via `DATABASE_URL`. Don't rely on the PGlite fallback: `./data/pg` is not
-  guaranteed to survive redeploys.
+  Supabase, ...) via `DATABASE_URL`, or keep the embedded PGlite and set `PGLITE_DIR` to an
+  absolute path in your home folder (e.g. `/home/u123456789/doop-data/pg`): each deploy gets a
+  fresh app folder, so the default `./data/pg` is wiped on redeploy.
 - Frame screenshots need Chromium, which isn't installed there; the rest of the app is unaffected.
 
 If you still want this route, use these settings in hPanel -> Websites -> Add Node.js app:

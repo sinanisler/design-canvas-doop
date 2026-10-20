@@ -68,6 +68,9 @@ const schema = {
   PORT: port({ default: 4400 }),
   /* unset = embedded Postgres (PGlite) under ./data/pg */
   DATABASE_URL: str({ default: undefined }),
+  /* PGlite data directory; point it outside the deploy folder on hosts that
+     replace the app directory on every release (e.g. Hostinger) */
+  PGLITE_DIR: str({ default: undefined }),
 
   /* ---------------------------------------------------------- auth */
   BETTER_AUTH_SECRET: str({

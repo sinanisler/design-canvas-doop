@@ -34,7 +34,7 @@ export async function initDb(): Promise<void> {
   } else {
     const { PGlite } = await import('@electric-sql/pglite')
     const { drizzle } = await import('drizzle-orm/pglite')
-    const dir = path.join(process.cwd(), 'data', 'pg')
+    const dir = env.PGLITE_DIR ?? path.join(process.cwd(), 'data', 'pg')
     fs.mkdirSync(dir, { recursive: true }) // PGlite's own mkdir isn't recursive
     const client = new PGlite(dir)
     const pgliteDb = drizzle(client, { schema })
