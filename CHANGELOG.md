@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.9.0](https://github.com/sinanisler/design-canvas-doop/compare/v0.8.0...v0.9.0) (2026-10-21)
+
+
+### Features
+
+* configurable PGlite data dir for hostinger ([854ecc1](https://github.com/sinanisler/design-canvas-doop/commit/854ecc1607de97065dee03f77d15a7a4c2307eb0))
+* frame export improvements ([282cb2a](https://github.com/sinanisler/design-canvas-doop/commit/282cb2a609e6e7de2d4cc4e4960351477dffc8ad))
+* hideable agent prompt bar, paste images into selected frame ([807935a](https://github.com/sinanisler/design-canvas-doop/commit/807935af89d71d9d8b52c3c3d2b0880cd026cd53))
+
 ## [0.8.0](https://github.com/kgoedecke/doop/compare/v0.7.0...v0.8.0) (2026-10-13)
 
 
