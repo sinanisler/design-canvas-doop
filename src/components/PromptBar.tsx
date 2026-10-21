@@ -8,7 +8,7 @@ import { Button } from './ui/button'
 import { Input } from './ui/input'
 import { Note } from './ui/note'
 import { DoopMark } from './Logo'
-import { AttachmentIcon, XIcon } from './ui/icons'
+import { AttachmentIcon, SparkIcon, XIcon } from './ui/icons'
 import { LayerKindIcon } from './LayerKindIcon'
 import { buildLayerTree, findLayer, layerName } from '../lib/layers'
 import type { CardScope } from '../../shared/types'
@@ -56,6 +56,17 @@ function openFlyWindow(extraKnown: string[] = []): { known: Set<string>; until: 
   }
 }
 
+/** per-browser: whether the bar is collapsed to its "Ask the agent" pill */
+const HIDDEN_KEY = 'doop-prompt-hidden'
+
+function readHidden(): boolean {
+  try {
+    return localStorage.getItem(HIDDEN_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+
 interface Attachment {
   file: File
   /** object URL for the thumbnail, revoked on removal/submit */
@@ -67,6 +78,15 @@ export function PromptBar({ canvasId }: { canvasId: string }) {
   const selectedId = useStore((s) => s.selectedId)
   const selectedElement = useStore((s) => s.selectedElement)
   const { allowance, refresh } = useAllowance()
+  const [hidden, setHiddenState] = useState(readHidden)
+  function setHidden(next: boolean) {
+    setHiddenState(next)
+    try {
+      localStorage.setItem(HIDDEN_KEY, next ? '1' : '0')
+    } catch {
+      /* storage blocked: the choice lasts for this page only */
+    }
+  }
   /* the selection is the prompt's scope until the chip is dismissed — × or
      Esc drops it entirely, no stepping up to the frame. Keyed on the scope
      so a new selection brings the chip back. */
@@ -201,6 +221,19 @@ export function PromptBar({ canvasId }: { canvasId: string }) {
     }
   }
 
+  if (hidden) {
+    return (
+      <Button
+        variant="bare"
+        className="absolute bottom-[68px] left-1/2 z-30 -translate-x-1/2 rounded-full border border-line bg-surface px-3 py-1.5 text-[12.5px] text-ink-soft shadow-pop hover:text-ink max-md:bottom-[calc(76px+env(safe-area-inset-bottom))]"
+        title="Show the Doop Agent prompt"
+        onClick={() => setHidden(false)}
+      >
+        <SparkIcon aria-hidden /> Ask the agent
+      </Button>
+    )
+  }
+
   return (
     <div className="absolute bottom-[68px] left-1/2 z-30 flex w-[min(560px,calc(100vw-32px))] -translate-x-1/2 flex-col gap-2 max-md:bottom-[calc(76px+env(safe-area-inset-bottom))] max-md:w-[calc(100vw-16px)] max-md:gap-1.5">
       {attachments.length > 0 && (
@@ -313,6 +346,15 @@ export function PromptBar({ canvasId }: { canvasId: string }) {
           disabled={busy || !text.trim()}
         >
           {busy ? '…' : 'Design it'}
+        </Button>
+        <Button
+          variant="bare"
+          className="size-10 flex-none justify-center p-2 text-ink-faint hover:bg-paper hover:text-ink-soft sm:size-auto sm:p-1.5"
+          aria-label="Hide the prompt bar"
+          title="Hide"
+          onClick={() => setHidden(true)}
+        >
+          <XIcon aria-hidden />
         </Button>
       </form>
       <div className="flex min-h-4 justify-center">

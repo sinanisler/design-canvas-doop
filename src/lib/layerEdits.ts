@@ -5,6 +5,7 @@ import { deleteFramesTracked, recordUpdate } from './history'
 import {
   duplicateElement,
   moveElement,
+  placeImage,
   removeElement,
   replaceElement,
   shiftElement,
@@ -64,6 +65,17 @@ export function replaceLayerHtml(frame: Frame, selector: string, outerHtml: stri
   const html = replaceElement(frame.html, selector, outerHtml)
   if (html === null) return false
   saveFrameHtml(frame, html)
+  return true
+}
+
+/** Upload an image and place it at the pick (or the end of the frame's body);
+ *  false when the selector no longer resolves. */
+export async function insertImageLayer(frame: Frame, selector: string | null, file: File): Promise<boolean> {
+  const { url } = await api.uploadAsset(frame.canvasId, file)
+  const current = useStore.getState().canvas?.frames.find((f) => f.id === frame.id) ?? frame
+  const html = placeImage(current.html, selector, url, file.name.replace(/\.[^.]+$/, ''))
+  if (html === null) return false
+  saveFrameHtml(current, html)
   return true
 }
 

@@ -212,6 +212,28 @@ export function replaceElement(html: string, selector: string, outerHtml: string
   return serialize(doc)
 }
 
+/** The frame's HTML with an image placed at the pick: a picked <img> gets the
+ *  new src, a container gets the image appended, any other element gets it
+ *  right after; no selector appends to <body>. Null when the selector no
+ *  longer resolves. */
+export function placeImage(html: string, selector: string | null, src: string, alt: string): string | null {
+  const doc = parse(html)
+  const target = selector ? find(doc, selector) : doc.body
+  if (!target) return null
+  if (target.tagName === 'IMG') {
+    target.setAttribute('src', src)
+    target.removeAttribute('srcset')
+    return serialize(doc)
+  }
+  const img = doc.createElement('img')
+  img.setAttribute('src', src)
+  img.setAttribute('alt', alt)
+  img.setAttribute('style', 'display:block;max-width:100%;height:auto')
+  if (target === doc.body || holdsChildren(target.tagName)) target.append(img)
+  else target.after(img)
+  return serialize(doc)
+}
+
 /** The frame's HTML with a copy of the element inserted right after it. */
 export function duplicateElement(html: string, selector: string): string | null {
   const doc = parse(html)

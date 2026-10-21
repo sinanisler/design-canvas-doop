@@ -46,7 +46,7 @@ import {
   pasteImagesCentered,
 } from '../lib/frameClipboard'
 import { clearHistory, redo, undo } from '../lib/history'
-import { deleteSelection } from '../lib/layerEdits'
+import { deleteSelection, insertImageLayer } from '../lib/layerEdits'
 import { authClient } from '../lib/auth'
 import { posthog } from '../lib/posthog'
 import { useIsMobile } from '../hooks/use-mobile'
@@ -213,7 +213,15 @@ export function CanvasPage({ canvasId }: { canvasId: string }) {
       const images = [...(e.clipboardData?.files ?? [])].filter((f) => f.type.startsWith('image/'))
       if (images.length) {
         e.preventDefault()
-        pasteImagesCentered(canvasId, images).catch((err: Error) => {
+        /* a picked element, or a lone selected frame, takes the image in
+           place; with nothing selected it lands as a new frame */
+        const s = useStore.getState()
+        const targetId = s.selectedElement?.frameId ?? (s.selectedIds.length === 1 ? s.selectedId : null)
+        const target = s.canvas?.frames.find((f) => f.id === targetId)
+        const pasted = target
+          ? insertImageLayer(target, s.selectedElement?.selector ?? null, images[0]!)
+          : pasteImagesCentered(canvasId, images)
+        pasted.catch((err: Error) => {
           setToast(`Couldn’t paste image — ${err.message}`)
           window.setTimeout(() => setToast(null), 4000)
         })
