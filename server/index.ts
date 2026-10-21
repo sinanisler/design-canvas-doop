@@ -328,9 +328,22 @@ app.use('/relay', async (req, res) => {
 
 app.get('/i/:id.:ext', async (req, res) => {
   const { id, ext } = req.params as { id: string; ext: string }
-  if (ext !== 'png' && ext !== 'jpg') return res.status(404).end()
+  if (ext !== 'png' && ext !== 'jpg' && ext !== 'html') return res.status(404).end()
   const frame = store.getFrame(id)
   if (!frame) return res.status(404).end()
+
+  const safe = frame.name.replace(/[^\w\- ]+/g, '').trim() || 'frame'
+  if (ext === 'html') {
+    /* the frame's own document, not a render. It is user-authored markup on
+       the app's origin, so it is only ever downloaded, and sandboxed if
+       someone opens it anyway. */
+    res.set('Content-Type', 'text/html; charset=utf-8')
+    res.set('Content-Disposition', `attachment; filename="${safe}.html"`)
+    res.set('Content-Security-Policy', 'sandbox')
+    res.set('X-Content-Type-Options', 'nosniff')
+    res.set('Cache-Control', 'public, max-age=60')
+    return res.send(frame.html)
+  }
 
   let result: Awaited<ReturnType<typeof getImage>>
   try {
@@ -359,10 +372,7 @@ app.get('/i/:id.:ext', async (req, res) => {
 
   res.set('Content-Type', ext === 'jpg' ? 'image/jpeg' : 'image/png')
   res.set('Cache-Control', 'public, max-age=60')
-  if (req.query.download !== undefined) {
-    const safe = frame.name.replace(/[^\w\- ]+/g, '').trim() || 'frame'
-    res.set('Content-Disposition', `attachment; filename="${safe}.${ext}"`)
-  }
+  if (req.query.download !== undefined) res.set('Content-Disposition', `attachment; filename="${safe}.${ext}"`)
   res.send(buf)
 })
 

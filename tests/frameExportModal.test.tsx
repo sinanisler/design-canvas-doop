@@ -84,6 +84,7 @@ it('hands focus from the frame menu to a persistent export dialog and dismisses 
   expect(dialog.contains(document.activeElement)).toBe(true)
   expect(dialog.textContent).toContain('Download PNG')
   expect(dialog.textContent).toContain('Download JPG')
+  expect(dialog.textContent).toContain('Download HTML')
   expect(dialog.textContent).not.toMatch(/PSD|Canva|Figma/)
   expect(dialog.textContent).not.toContain('Copy image URL')
   await act(async () => {

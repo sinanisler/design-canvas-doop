@@ -1,4 +1,4 @@
-import { spawn, type ChildProcess } from 'node:child_process'
+import { spawn, spawnSync, type ChildProcess } from 'node:child_process'
 import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
@@ -121,11 +121,18 @@ async function boot(env: Record<string, string>, reuseDir: string | undefined, t
       dataDir,
       stopped,
       stop({ keepData }: { keepData?: boolean } = {}) {
-        proc.kill()
+        killTree(proc)
         if (!keepData) rmSync(dataDir, { recursive: true, force: true })
       },
     }
   }
+}
+
+/** On Windows `.bin/tsx` is a cmd shim: a plain kill stops the shim but leaves
+ *  its node child running, and that child keeps the PGlite files locked. */
+function killTree(proc: ChildProcess) {
+  if (process.platform === 'win32' && proc.pid) spawnSync('taskkill', ['/pid', String(proc.pid), '/T', '/F'])
+  else proc.kill()
 }
 
 /** Resolves true once the child logs that it is listening on `port`, false if

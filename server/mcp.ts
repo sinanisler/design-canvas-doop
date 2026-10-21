@@ -931,17 +931,23 @@ export function buildMcpServer(owner?: string, ownerId?: string): McpServer {
     {
       title: 'Export frame as image',
       description:
-        "Get public image URLs (PNG/JPG) rendering the frame's CURRENT design — for publishing it elsewhere: download the URL and upload to a CMS media library, social post, or use directly as og:image. The URL re-renders when the frame changes.",
+        "Get public URLs for the frame's CURRENT design — PNG/JPG renders, or the frame's HTML document (format 'html', a download of the design's own markup, not a render). For publishing it elsewhere: download the URL and upload to a CMS media library, social post, or use directly as og:image. Image URLs re-render when the frame changes.",
       annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
       inputSchema: {
         frame_id: z.string(),
-        format: z.enum(['png', 'jpg']).optional().describe('default png'),
+        format: z.enum(['png', 'jpg', 'html']).optional().describe('default png'),
         quality: z.number().min(1).max(100).optional().describe('jpg only, default 90'),
       },
     },
     async ({ frame_id, format, quality }) => {
       const f = frameFor(frame_id)
       if (!f) return noFrame(frame_id)
+      if (format === 'html') {
+        return text({
+          download_url: `${env.BETTER_AUTH_URL}/i/${frame_id}.html`,
+          note: 'Public URL, no auth needed. Serves the frame’s HTML document as a file download — the design itself, self-contained markup, not an image.',
+        })
+      }
       const ext = format === 'jpg' ? 'jpg' : 'png'
       const q = ext === 'jpg' ? `&quality=${quality ?? 90}` : ''
       return text({

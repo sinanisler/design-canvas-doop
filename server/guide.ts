@@ -377,6 +377,8 @@ CURRENT html (/i/<frameId>.png?scale=2; use .jpg?quality=90 for JPEG, append &do
 for an attachment). The export_frame tool returns the same URLs on demand. Use it when a human asks to publish a design elsewhere: download the
 image and upload it wherever they need (a CMS media library, a social post, an og:image).
 The URL re-renders on change, so an embedded link stays current as the frame iterates.
+For the design's source instead of an image, export_frame with format "html" returns
+/i/<frameId>.html — the frame's own HTML document, served as a download.
 
 ## Multiplayer etiquette
 

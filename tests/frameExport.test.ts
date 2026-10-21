@@ -102,6 +102,18 @@ it('keeps the spinner up while another export is still rendering', async () => {
   expect(useStore.getState().notice).toMatchObject({ text: '“Poster.jpg” is ready', busy: false })
 })
 
+it('saves the stored frame HTML as a file without a server render', async () => {
+  vi.stubGlobal('fetch', vi.fn())
+
+  await downloadFrameExport({ ...frame, html: '<h1>Poster</h1>' }, 'html')
+
+  expect(fetch).not.toHaveBeenCalled()
+  expect(clicked.map((a) => a.download)).toEqual(['Poster.html'])
+  const blob = vi.mocked(URL.createObjectURL).mock.calls[0]![0] as Blob
+  expect(await blob.text()).toBe('<h1>Poster</h1>')
+  expect(useStore.getState().notice).toMatchObject({ text: '“Poster.html” is ready', busy: false })
+})
+
 it('in the desktop shell leaves the outcome to the save panel, which may be cancelled', async () => {
   ;(globalThis as { __DOOP_DESKTOP__?: string }).__DOOP_DESKTOP__ = '0.4.0'
   vi.stubGlobal(

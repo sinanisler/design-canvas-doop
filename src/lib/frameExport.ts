@@ -2,9 +2,9 @@ import type { Frame } from '../../shared/types'
 import { isDesktopShell } from './shell'
 import { useStore } from './store'
 
-export type FrameExportFormat = 'png' | 'jpg'
+export type FrameExportFormat = 'png' | 'jpg' | 'html'
 
-const FORMAT_LABEL: Record<FrameExportFormat, string> = { png: 'PNG', jpg: 'JPG' }
+const FORMAT_LABEL: Record<FrameExportFormat, string> = { png: 'PNG', jpg: 'JPG', html: 'HTML' }
 
 /* Blob URLs are revoked late: in the desktop shell the save panel opens
    before WebKit reads the blob, and the person may take a while to pick. */
@@ -84,6 +84,14 @@ async function exportOutcome(frame: Frame, format: FrameExportFormat): Promise<s
  *  then the outcome. Fired from surfaces that close on click, so the
  *  toast in the store is the only place the result can land. */
 export async function downloadFrameExport(frame: Frame, format: FrameExportFormat): Promise<void> {
+  if (format === 'html') {
+    /* The stored frame document is the design itself, so there is nothing to
+       render: save it as it is. */
+    const fileName = `${frame.name.replace(/[^\w\- ]+/g, '').trim() || 'frame'}.html`
+    saveBlob(new Blob([frame.html], { type: 'text/html;charset=utf-8' }), fileName)
+    report(isDesktopShell() ? null : `“${fileName}” is ready`)
+    return
+  }
   inFlight += 1
   useStore.getState().pushNotice(`Exporting ${FORMAT_LABEL[format]}…`, { busy: true })
   const outcome = await exportOutcome(frame, format)

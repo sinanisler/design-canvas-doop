@@ -148,6 +148,13 @@ export function Inspector({
         </Button>
         <Button
           className={exportBtn}
+          title="Download as HTML — the frame's own markup"
+          onClick={() => void downloadFrameExport(frame, 'html')}
+        >
+          HTML
+        </Button>
+        <Button
+          className={exportBtn}
           title="Add to design memory — will be used as reference"
           onClick={() => api.pinReference(frame.canvasId, frame.id).catch(console.error)}
         >
