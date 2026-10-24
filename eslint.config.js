@@ -12,9 +12,10 @@ export default tseslint.config(
     rules: { 'no-undef': 'error' },
   },
   {
-    /* repo maintenance scripts and the iOS dev helpers: plain ESM run directly
-       by node, so they get node globals rather than the browser set */
-    files: ['scripts/**/*.{js,mjs}', 'ios/scripts/**/*.{js,mjs}'],
+    /* repo maintenance scripts, the iOS dev helpers and the root server.mjs
+       entry: plain ESM run directly by node, so they get node globals rather
+       than the browser set */
+    files: ['scripts/**/*.{js,mjs}', 'ios/scripts/**/*.{js,mjs}', 'server.mjs'],
     languageOptions: {
       globals: Object.fromEntries(
         'process console Buffer URL fetch setTimeout clearTimeout setInterval clearInterval'

@@ -26,7 +26,7 @@ beforeAll(async () => {
     handleLocalAgentMcp(req, res).catch(next)
   })
   await new Promise<void>((resolve) => {
-    server = app.listen(0, '127.0.0.1', resolve)
+    server = app.listen(0, '127.0.0.1', () => resolve())
   })
   origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
 })

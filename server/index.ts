@@ -492,7 +492,7 @@ app.put('/u/:token', async (req, res) => {
    plugin adds are refused by default rather than discovered later. */
 const MCP_OAUTH_PATHS = /^\/api\/auth\/(mcp\/|oauth2\/(authorize|consent|token))/
 const VIEW_AS_ALLOWED = /^\/api\/auth\/(sign-out|admin\/stop-impersonating)$/
-app.all('/api/auth/*', async (req, res, next) => {
+app.all('/api/auth/{*splat}', async (req, res, next) => {
   const restricted = MCP_OAUTH_PATHS.test(req.path) || (req.method !== 'GET' && !VIEW_AS_ALLOWED.test(req.path))
   if (restricted) {
     const session = await auth.api.getSession({ headers: fromNodeHeaders(req.headers) }).catch(() => null)
@@ -1858,7 +1858,7 @@ app.get('/sitemap.xml', (_req, res) => {
 if (env.isProduction) {
   const dist = path.join(process.cwd(), 'dist')
   app.use(express.static(dist))
-  app.get('*', (_req, res) => res.sendFile(path.join(dist, 'index.html')))
+  app.get('/{*splat}', (_req, res) => res.sendFile(path.join(dist, 'index.html')))
 }
 
 /* ------------------------------------------------- websocket */
