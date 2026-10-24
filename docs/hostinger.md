@@ -34,18 +34,32 @@ These plans can boot doop, but two platform limits apply:
 
 If you still want this route, use these settings in hPanel -> Websites -> Add Node.js app:
 
-| Setting           | Value                                    |
-| ----------------- | ---------------------------------------- |
-| Application type  | Express (or Other)                       |
-| Node.js version   | 22                                       |
-| Root directory    | `/`                                      |
-| Build script      | `build` (if offered; else server.mjs builds on first boot) |
-| Output directory  | _(empty)_                                |
-| Entry file        | `server.mjs`                             |
-| Package manager   | npm                                      |
+| Setting          | Value                                                      |
+| ---------------- | ---------------------------------------------------------- |
+| Application type | Express (or Other)                                         |
+| Node.js version  | 22                                                         |
+| Root directory   | `/`                                                        |
+| Build script     | `build` (if offered; else server.mjs builds on first boot) |
+| Output directory | _(empty)_                                                  |
+| Entry file       | `server.mjs`                                               |
+| Package manager  | npm                                                        |
 
 Environment variables: `DATABASE_URL`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL` (your public
 origin), plus any optional keys from `.env.example`. Health check: `GET /healthz`.
 
 `server.mjs` exists because Hostinger only accepts a `.js`/`.mjs`/`.cjs` entry file; it loads the
 TypeScript server through tsx, the same way `npm start` does.
+
+### Troubleshooting
+
+- **`403 Forbidden` on every path, including `/healthz`, with `server: hcdn` in the response
+  headers.** The request is stopped at Hostinger's edge CDN and never reaches doop, so no code
+  change can fix it. Check hPanel: the Node.js app must be running (restart it), the plan must be
+  active, and the app must be within its CPU and memory limits (the Application log shows crashes
+  and restarts). `curl -I https://your-domain/healthz` tells you whether the app answers.
+- **`npm install` fails with `ERESOLVE` or `Cannot read properties of null (reading 'edgesOut')`.**
+  Pull a current `main` (or the branch that adds `.npmrc`): its `legacy-peer-deps=true` makes the
+  first install succeed. The old deploy log showed a failed install followed by a retry with
+  `--legacy-peer-deps`; that is the same problem.
+- **Sign-up or sign-in says "Something went wrong" with 403s on `/api/*`.** Same cause as above: the
+  CDN is blocking the API, not the app.
