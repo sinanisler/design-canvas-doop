@@ -258,6 +258,19 @@ const app = express()
 /* Railway/Fly terminate TLS in front of us; trust the proxy so req.protocol
    and secure cookies see https, and OAuth metadata echoes the right origin */
 app.set('trust proxy', 1)
+app.disable('x-powered-by')
+
+/* Baseline headers on every response. No MIME sniffing; no framing by other
+   sites, which blocks clickjacking of sign-in and consent screens; referrers
+   stop at the origin. Routes that serve user content set their own stricter
+   headers after this and win. Nothing frames doop's own pages: canvas frames
+   render through srcDoc, so SAMEORIGIN never comes into play for them. */
+app.use((_req, res, next) => {
+  res.set('X-Content-Type-Options', 'nosniff')
+  res.set('X-Frame-Options', 'SAMEORIGIN')
+  res.set('Referrer-Policy', 'strict-origin-when-cross-origin')
+  next()
+})
 
 app.get('/healthz', (_req, res) => res.json({ ok: true }))
 
