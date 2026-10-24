@@ -1274,6 +1274,17 @@ export function setCanvasPages(canvasId: string, pages: import('../shared/types.
   broadcast(canvasId, { type: 'canvas:pages', pages, actor })
 }
 
+/** Reorder a page's frames, as the Layers rail drag does. Every frame whose
+ *  stacking changed goes out to the room; null when `order` is not the page's frames. */
+export function reorderFrames(canvasId: string, pageId: string, order: string[], actor: Actor): Frame[] | null {
+  const changed = store.reorderFrames(canvasId, pageId, order)
+  if (!changed) return null
+  for (const frame of changed) broadcast(canvasId, { type: 'frame:updated', frame, actor })
+  if (changed.length) logActivity(canvasId, actor, 'reordered the frames')
+  touch(canvasId, actor)
+  return changed
+}
+
 export function createFrame(
   canvasId: string,
   input: {

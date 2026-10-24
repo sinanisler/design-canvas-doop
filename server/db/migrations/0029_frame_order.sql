@@ -1,0 +1,2 @@
+ALTER TABLE "frames" ADD COLUMN "z" double precision;--> statement-breakpoint
+UPDATE "frames" AS f SET "z" = r."rn" FROM (SELECT "id", row_number() OVER (PARTITION BY "canvas_id" ORDER BY "created_at", "id") - 1 AS "rn" FROM "frames") AS r WHERE f."id" = r."id";

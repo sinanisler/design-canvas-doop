@@ -1,5 +1,6 @@
 import { nanoid } from 'nanoid'
 import { canvasPages, pageFrames } from '../shared/pages.ts'
+import { placeFrames } from '../shared/frameOrder.ts'
 import * as persist from './db/persist.ts'
 import type { Canvas, CommunityCategory, Frame, GuidelineDoc, MemoryReference } from '../shared/types.ts'
 
@@ -466,6 +467,8 @@ class Store {
       createdAt: now,
       updatedAt: now,
       updatedBy: by,
+      /* a new frame stacks in front of every frame on the canvas */
+      z: Math.max(-1, ...c.frames.map((f) => f.z ?? -1)) + 1,
     }
     if (input.demo) frame.demo = true
     c.frames.push(frame)
@@ -474,6 +477,24 @@ class Store {
     persist.saveFrame(frame, true)
     persist.saveCanvas(c)
     return frame
+  }
+
+  /** Put a page's frames in `order`, which must name each of the page's frames
+   *  once. Returns the frames whose z changed, for saving and broadcast; null
+   *  when `order` is not that set. */
+  reorderFrames(canvasId: string, pageId: string, order: string[]): Frame[] | null {
+    const c = this.canvases.get(canvasId)
+    if (!c) return null
+    const onPage = new Set(pageFrames(c, pageId).map((f) => f.id))
+    if (order.length !== onPage.size || new Set(order).size !== order.length) return null
+    if (!order.every((id) => onPage.has(id))) return null
+    const before = c.frames
+    const next = placeFrames(before, order)
+    const changed = next.filter((f, i) => f !== before[i])
+    c.frames.splice(0, c.frames.length, ...next)
+    if (changed.length) c.updatedAt = Date.now()
+    for (const f of changed) persist.saveFrame(f)
+    return changed
   }
 
   updateFrame(

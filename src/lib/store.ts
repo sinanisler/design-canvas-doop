@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { canvasPages, framePageId } from '../../shared/pages'
+import { byStackOrder, placeFrames } from '../../shared/frameOrder'
 import type {
   ActivityItem,
   AgentTask,
@@ -66,6 +67,8 @@ interface State {
   selectedId: string | null
   /** space bar held: the stage pans on drag instead of drawing a marquee */
   panMode: boolean
+  /* the canvas frame a dragged layer would land in, while the rail is dragging one */
+  layerDropFrameId: string | null
   /** the Inspector panel is showing — opened by clicking a frame's name, not
    *  by mere selection, so clicking around a frame doesn't slide the panel in */
   inspectorOpen: boolean
@@ -144,6 +147,8 @@ interface State {
   /** the chat is on screen: nothing is unread any more */
   markChatSeen(): void
   upsertFrame(f: Frame): void
+  /** Put the active page's frames in `order` (back to front) before the server answers. */
+  reorderFramesLocal(order: string[]): void
   patchFrameLocal(frameId: string, patch: Partial<Frame>): void
   removeFrame(frameId: string): void
   renameCanvasLocal(name: string): void
@@ -170,6 +175,7 @@ interface State {
   /** marquee: replace the selection with these frames */
   selectMany(ids: string[]): void
   setPanMode(v: boolean): void
+  setLayerDropFrameId(id: string | null): void
   setInspectorOpen(v: boolean): void
   openCtxMenu(menu: { frameId: string; deferPanel: boolean }): void
   closeCtxMenu(): void
@@ -219,6 +225,7 @@ export const useStore = create<State>((set, get) => ({
   selectedIds: [],
   selectedId: null,
   panMode: false,
+  layerDropFrameId: null,
   inspectorOpen: false,
   ctxMenu: null,
   selectedElement: null,
@@ -367,12 +374,16 @@ export const useStore = create<State>((set, get) => ({
         : [fb, ...s.feedback].slice(0, 100)
       return { feedback }
     }),
+  reorderFramesLocal: (order) =>
+    set((s) => (s.canvas ? { canvas: { ...s.canvas, frames: placeFrames(s.canvas.frames, order) } } : {})),
   upsertFrame: (f) =>
     set((s) => {
       if (!s.canvas || f.canvasId !== s.canvas.id) return {}
-      const frames = s.canvas.frames.some((x) => x.id === f.id)
-        ? s.canvas.frames.map((x) => (x.id === f.id ? f : x))
-        : [...s.canvas.frames, f]
+      const frames = (
+        s.canvas.frames.some((x) => x.id === f.id)
+          ? s.canvas.frames.map((x) => (x.id === f.id ? f : x))
+          : [...s.canvas.frames, f]
+      ).sort(byStackOrder)
       const hidden = s.selectedIds.includes(f.id) && framePageId(s.canvas, f) !== s.activePageId
       return {
         canvas: { ...s.canvas, frames },
@@ -510,6 +521,8 @@ export const useStore = create<State>((set, get) => ({
     })
   },
   setPanMode: (panMode) => set({ panMode }),
+  setLayerDropFrameId: (layerDropFrameId) =>
+    set((s) => (s.layerDropFrameId === layerDropFrameId ? {} : { layerDropFrameId })),
   setInspectorOpen: (inspectorOpen) => set({ inspectorOpen }),
   openCtxMenu: (ctxMenu) => set({ ctxMenu }),
   closeCtxMenu: () => set({ ctxMenu: null }),

@@ -404,6 +404,12 @@ export const api = {
         actor: actor(),
       }),
     }),
+  /** The Layers rail's frame order (back to front) for one page of a canvas. */
+  reorderFrames: (canvasId: string, pageId: string, order: string[]) =>
+    req<{ changed: string[] }>(`/api/canvases/${canvasId}/frames/order`, {
+      method: 'POST',
+      body: JSON.stringify({ pageId, order, actor: actor() }),
+    }),
   updateFrame: (frameId: string, patch: Partial<Frame>) =>
     req<Frame>('/api/frames/' + frameId, { method: 'PATCH', body: JSON.stringify({ ...patch, actor: actor() }) }),
   deleteFrame: (frameId: string) =>

@@ -12,6 +12,7 @@ import { FRAME_BOOTSTRAP } from '../lib/frameRuntime'
 import { recordCreate, recordUpdate, recordUpdates, trackSave } from '../lib/history'
 import { snapFrame } from '../lib/snap'
 import { gesture } from '../lib/gesture'
+import { isLocked, translateOf } from '../lib/layers'
 import { FrameContextMenu } from './FrameContextMenu'
 import { CodePanel } from './CodePanel'
 import { ContextMenu, ContextMenuTrigger } from './ui/context-menu'
@@ -113,6 +114,8 @@ export const FrameView = memo(function FrameView({ frame, raster }: { frame: Fra
   const panMode = useStore((s) => s.panMode)
   const select = useStore((s) => s.select)
   const flash = useStore((s) => s.flashes[frame.id])
+  /* a layer dragged over the stage from the Layers rail lands in this frame */
+  const layerDrop = useStore((s) => s.layerDropFrameId === frame.id)
   const stream = useStore((s) => s.streams[frame.id])
   /* select the stable presences map, derive in render — a selector that
      builds a fresh array re-renders every frame on EVERY store update
@@ -278,6 +281,64 @@ export const FrameView = memo(function FrameView({ frame, raster }: { frame: Fra
     window.addEventListener('pointerup', onUp)
   }
 
+  /* ---- direct manipulation: the selected element moves with a press inside
+     it, and its corner resizes it. Its inline styles go through the runtime,
+     which saves them like any element-panel edit; a locked layer does not
+     move, and a press anywhere else still drags the frame. ---- */
+  function pressElement(e: React.PointerEvent, mode: 'move' | 'resize'): boolean {
+    const hit = probe
+    if (!hit || editing || e.button !== 0 || useStore.getState().panMode) return false
+    const current = useStore.getState().canvas?.frames.find((f) => f.id === frame.id) ?? frame
+    if (isLocked(current.html, hit.selector)) return false
+    if (mode === 'move') {
+      const r = e.currentTarget.getBoundingClientRect()
+      const zoom = useStore.getState().viewport.zoom
+      const x = (e.clientX - r.left) / zoom
+      const y = (e.clientY - r.top) / zoom
+      const { x: left, y: top, width, height } = hit.rect
+      if (x < left || y < top || x > left + width || y > top + height) return false
+    }
+    e.stopPropagation()
+    e.preventDefault()
+    startElementDrag(e, hit, current, mode)
+    return true
+  }
+
+  function startElementDrag(e: React.PointerEvent, hit: ProbeHit, current: Frame, mode: 'move' | 'resize') {
+    const zoom = useStore.getState().viewport.zoom
+    const start = { x: e.clientX, y: e.clientY }
+    const from = hit.rect
+    /* a move starts from the offset already written; a resize from the size on screen */
+    const base = mode === 'move' ? translateOf(current.html, hit.selector) : { x: from.width, y: from.height }
+    const send = (styles: Record<string, string>) =>
+      iframeRef.current?.contentWindow?.postMessage({ type: 'doop:style', selector: hit.selector, styles }, '*')
+
+    function onMove(ev: PointerEvent) {
+      if (ev.pointerId !== e.pointerId) return
+      const dx = Math.round((ev.clientX - start.x) / zoom)
+      const dy = Math.round((ev.clientY - start.y) / zoom)
+      /* the outline follows the pointer at once; the runtime's save lands after the drag settles */
+      if (mode === 'move') {
+        send({ translate: `${base.x + dx}px ${base.y + dy}px` })
+        setProbe((p) =>
+          p?.selector === hit.selector ? { ...p, rect: { ...p.rect, x: from.x + dx, y: from.y + dy } } : p,
+        )
+      } else {
+        const width = Math.max(4, Math.round(from.width + dx))
+        const height = Math.max(4, Math.round(from.height + dy))
+        send({ width: `${width}px`, height: `${height}px` })
+        setProbe((p) => (p?.selector === hit.selector ? { ...p, rect: { ...p.rect, width, height } } : p))
+      }
+    }
+    function onUp(ev: PointerEvent) {
+      if (ev.pointerId !== e.pointerId) return
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerup', onUp)
+    }
+    window.addEventListener('pointermove', onMove)
+    window.addEventListener('pointerup', onUp)
+  }
+
   const html = useThrottledValue(frame.html, 150)
   const remoteEditor = editors[0]
 
@@ -315,6 +376,8 @@ export const FrameView = memo(function FrameView({ frame, raster }: { frame: Fra
   /* only thread roots get a pin; replies live inside the root's popover */
   const comments = frameComments.filter((c) => !c.parentId && !c.resolvedAt)
   const [probe, setProbe] = useState<ProbeHit | null>(null)
+  /* a locked element shows no resize corner: it cannot be moved or resized */
+  const probeLocked = probe ? isLocked(frame.html, probe.selector) : false
   /* element selected for text editing inside the iframe (edit mode only) */
   const [activeHit, setActiveHit] = useState<ProbeHit | null>(null)
   const [composing, setComposing] = useState(false)
@@ -428,7 +491,11 @@ export const FrameView = memo(function FrameView({ frame, raster }: { frame: Fra
   const selectReq = useRef(0)
   const selectSel = useRef<string | null>(null)
   useEffect(() => {
-    if (!runtimeReady || !wantedSel || wantedSel === probeSel) return
+    /* the runtime still shows the throttled `html` until it catches up with
+       the store: a selector that only exists in the new markup (a layer just
+       moved here from another frame) would be a miss, and a miss clears the
+       selection — wait for the document to hold what the store says */
+    if (!runtimeReady || !wantedSel || wantedSel === probeSel || html !== frame.html) return
     /* a surface click clears the probe, and the effect above has just cleared
        the store to match — but this render still carries the old selector.
        Re-selecting it here would resurrect the previous element and (via the
@@ -444,7 +511,7 @@ export const FrameView = memo(function FrameView({ frame, raster }: { frame: Fra
       { type: 'doop:select', reqId: selectReq.current, selector: wantedSel },
       '*',
     )
-  }, [runtimeReady, wantedSel, probeSel, frame.id])
+  }, [runtimeReady, wantedSel, probeSel, frame.id, html, frame.html])
 
   useEffect(() => {
     function onMsg(ev: MessageEvent) {
@@ -589,8 +656,11 @@ export const FrameView = memo(function FrameView({ frame, raster }: { frame: Fra
     >
       <ContextMenuTrigger asChild>
         <div
+          data-frame-id={frame.id}
           className={cn(
             'group absolute',
+            layerDrop &&
+              "after:pointer-events-none after:absolute after:-inset-[4px] after:rounded-[10px] after:border-[3px] after:border-brand after:content-['']",
             stream &&
               "before:pointer-events-none before:absolute before:-inset-[3px] before:rounded-[9px] before:border-2 before:border-dashed before:border-[var(--editing-color,var(--brand))] before:content-[''] before:animate-[stream-pulse_1.1s_ease-in-out_infinite]",
           )}
@@ -684,7 +754,9 @@ export const FrameView = memo(function FrameView({ frame, raster }: { frame: Fra
               dragging && 'cursor-grabbing',
             )}
             style={duping || (dupKeyHeld && !editing) ? { cursor: DUP_CURSOR } : undefined}
-            onPointerDown={(e) => startDrag(e, 'move', true)}
+            onPointerDown={(e) => {
+              if (!pressElement(e, 'move')) startDrag(e, 'move', true)
+            }}
             onDoubleClick={() => canEdit && !editing && enterEdit()}
             onPointerMove={(e) => {
               if (editing || dragging || !frame.html || !runtimeReady) return
@@ -738,6 +810,16 @@ export const FrameView = memo(function FrameView({ frame, raster }: { frame: Fra
               <div
                 className="pointer-events-none absolute z-[3] shadow-[inset_0_0_0_calc(1.5px/var(--zoom,1))_#3c82f6,0_0_0_calc(1.5px/var(--zoom,1))_rgba(60,130,246,0.35)]"
                 style={{ left: probe.rect.x, top: probe.rect.y, width: probe.rect.width, height: probe.rect.height }}
+              />
+            )}
+            {probe && selected && !editing && !dragging && !probeLocked && (
+              <div
+                aria-label="Resize element"
+                className="absolute z-[4] size-[9px] cursor-nwse-resize rounded-[2px] border-2 border-brand bg-surface [transform:translate(-50%,-50%)_scale(calc(1/var(--zoom,1)))]"
+                style={{ left: probe.rect.x + probe.rect.width, top: probe.rect.y + probe.rect.height }}
+                onPointerDown={(e) => {
+                  pressElement(e, 'resize')
+                }}
               />
             )}
             {flash && (
@@ -927,7 +1009,7 @@ export const FrameView = memo(function FrameView({ frame, raster }: { frame: Fra
 
           <div
             className={cn(
-              'absolute -right-[7px] -bottom-[7px] h-3.5 w-3.5 cursor-nwse-resize rounded-[4px] border-[1.5px] border-ink bg-surface opacity-0 [transition:opacity_0.12s] group-hover:opacity-100',
+              'absolute -right-[7px] -bottom-[7px] h-3.5 w-3.5 cursor-nwse-resize rounded-[4px] border-[1.5px] border-ink bg-surface opacity-0 [transform:scale(calc(1/var(--zoom,1)))] [transition:opacity_0.12s] group-hover:opacity-100',
               selected && 'opacity-100',
             )}
             onPointerDown={(e) => startDrag(e, 'resize')}

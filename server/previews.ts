@@ -32,8 +32,8 @@ const renderHits = new Map<string, number[]>()
 const RENDERS_PER_MIN = env.PREVIEW_RENDERS_PER_MIN
 
 export interface ImageRequest {
-  ext: 'png' | 'jpg'
-  scale: 1 | 2
+  ext: 'png' | 'jpg' | 'pdf'
+  scale: 1 | 2 | 3
   quality: number
   /** dashboard-card variant: small, clipped, jpeg, persisted. Only
    *  meaningful for jpg — a png?preview would serve jpeg bytes under an
@@ -70,16 +70,24 @@ export async function getImage(frame: Frame, req: ImageRequest): Promise<ImageRe
     pending = preview
       ? /* renders AND persists — the next cold start serves from storage */
         thumbs.create(frame)
-      : loadScreenshot().then(({ renderFrame }) =>
-          renderFrame(frame, req.scale, { type: req.ext === 'jpg' ? 'jpeg' : 'png', quality: req.quality }),
-        )
+      : req.ext === 'pdf'
+        ? loadScreenshot().then(({ renderFramePdf }) => renderFramePdf(frame))
+        : loadScreenshot().then(({ renderFrame }) =>
+            renderFrame(frame, req.scale, { type: req.ext === 'jpg' ? 'jpeg' : 'png', quality: req.quality }),
+          )
     remember(key, pending, frame.updatedAt)
   }
 
   return { status: 'ok', buf: await pending }
 }
 
-function imageKey(id: string, ext: 'png' | 'jpg', scale: 1 | 2, quality: number | '', preview: boolean): string {
+function imageKey(
+  id: string,
+  ext: ImageRequest['ext'],
+  scale: 1 | 2 | 3,
+  quality: number | '',
+  preview: boolean,
+): string {
   return `${id}:${ext}:${scale}:${quality}:${preview ? 'p' : ''}`
 }
 
@@ -88,7 +96,7 @@ function imageKey(id: string, ext: 'png' | 'jpg', scale: 1 | 2, quality: number 
  *  preview card loads `/i/<id>.png` right after it from a cookie-less sandbox
  *  iframe — anonymous, so metered. Priming turns that load into a free
  *  cached serve instead of a second render against the per-IP budget. */
-export function primeImage(frame: Frame, scale: 1 | 2, png: Buffer): void {
+export function primeImage(frame: Frame, scale: 1 | 2 | 3, png: Buffer): void {
   remember(imageKey(frame.id, 'png', scale, '', false), Promise.resolve(png), frame.updatedAt)
 }
 

@@ -328,7 +328,7 @@ app.use('/relay', async (req, res) => {
 
 app.get('/i/:id.:ext', async (req, res) => {
   const { id, ext } = req.params as { id: string; ext: string }
-  if (ext !== 'png' && ext !== 'jpg' && ext !== 'html') return res.status(404).end()
+  if (ext !== 'png' && ext !== 'jpg' && ext !== 'html' && ext !== 'pdf') return res.status(404).end()
   const frame = store.getFrame(id)
   if (!frame) return res.status(404).end()
 
@@ -349,7 +349,7 @@ app.get('/i/:id.:ext', async (req, res) => {
   try {
     result = await getImage(frame, {
       ext,
-      scale: req.query.scale === '2' ? 2 : 1,
+      scale: req.query.scale === '3' ? 3 : req.query.scale === '2' ? 2 : 1,
       quality: Math.min(100, Math.max(1, Number(req.query.quality) || 90)),
       /* ?preview — the dashboard-card variant; see previews.ts */
       preview: req.query.preview !== undefined,
@@ -370,7 +370,7 @@ app.get('/i/:id.:ext', async (req, res) => {
   }
   const { buf } = result
 
-  res.set('Content-Type', ext === 'jpg' ? 'image/jpeg' : 'image/png')
+  res.set('Content-Type', ext === 'pdf' ? 'application/pdf' : ext === 'jpg' ? 'image/jpeg' : 'image/png')
   res.set('Cache-Control', 'public, max-age=60')
   if (req.query.download !== undefined) res.set('Content-Disposition', `attachment; filename="${safe}.${ext}"`)
   res.send(buf)
@@ -1484,6 +1484,18 @@ app.patch('/api/frames/:id', (req, res) => {
   const frame = actions.updateFrame(req.params.id, clean, actor)
   if (!frame) return res.status(404).json({ error: 'frame not found' })
   res.json(frame)
+})
+
+/* the Layers rail drag: a page's frames in their new back-to-front order */
+app.post('/api/canvases/:id/frames/order', (req, res) => {
+  if (!requireCanvas(req, res, req.params.id)) return
+  const { pageId, order } = req.body ?? {}
+  if (typeof pageId !== 'string' || !Array.isArray(order) || !order.every((id) => typeof id === 'string'))
+    return res.status(400).json({ error: 'pageId and order are required' })
+  const actor = actions.resolveActor({ name: req.user!.name, kind: 'user' })
+  const changed = actions.reorderFrames(req.params.id, pageId, order, actor)
+  if (!changed) return res.status(400).json({ error: 'order must name each frame on the page once' })
+  res.json({ changed: changed.map((f) => f.id) })
 })
 
 app.post('/api/frames/:id/append', (req, res) => {

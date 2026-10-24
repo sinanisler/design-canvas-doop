@@ -2,16 +2,19 @@ import type { Frame } from '../../shared/types'
 import { isDesktopShell } from './shell'
 import { useStore } from './store'
 
-export type FrameExportFormat = 'png' | 'jpg' | 'html'
+export type FrameExportFormat = 'png' | 'jpg' | 'pdf' | 'html'
+/** Pixel density of a PNG or JPG; a PDF is vector and takes none. */
+export type ExportScale = 1 | 2 | 3
 
-const FORMAT_LABEL: Record<FrameExportFormat, string> = { png: 'PNG', jpg: 'JPG', html: 'HTML' }
+const FORMAT_LABEL: Record<FrameExportFormat, string> = { png: 'PNG', jpg: 'JPG', pdf: 'PDF', html: 'HTML' }
 
 /* Blob URLs are revoked late: in the desktop shell the save panel opens
    before WebKit reads the blob, and the person may take a while to pick. */
 const BLOB_URL_LIFETIME_MS = 10 * 60_000
 
-export function frameExportUrl(frame: Frame, format: FrameExportFormat): string {
-  return `/i/${frame.id}.${format}?scale=2&download`
+export function frameExportUrl(frame: Frame, format: FrameExportFormat, scale: ExportScale = 2): string {
+  if (format === 'pdf') return `/i/${frame.id}.pdf?download`
+  return `/i/${frame.id}.${format}?scale=${scale}&download`
 }
 
 /** The server names the file after the frame; fall back to that if the
@@ -65,9 +68,9 @@ function report(outcome: string | null) {
   }
 }
 
-async function exportOutcome(frame: Frame, format: FrameExportFormat): Promise<string | null> {
+async function exportOutcome(frame: Frame, format: FrameExportFormat, scale: ExportScale): Promise<string | null> {
   try {
-    const res = await fetch(frameExportUrl(frame, format), { signal: AbortSignal.timeout(EXPORT_TIMEOUT_MS) })
+    const res = await fetch(frameExportUrl(frame, format, scale), { signal: AbortSignal.timeout(EXPORT_TIMEOUT_MS) })
     if (!res.ok) return await failureOf(res, format)
     const fileName = fileNameOf(res, frame, format)
     saveBlob(await res.blob(), fileName)
@@ -83,7 +86,11 @@ async function exportOutcome(frame: Frame, format: FrameExportFormat): Promise<s
  *  a spinner while the server renders (rendering can take several seconds),
  *  then the outcome. Fired from surfaces that close on click, so the
  *  toast in the store is the only place the result can land. */
-export async function downloadFrameExport(frame: Frame, format: FrameExportFormat): Promise<void> {
+export async function downloadFrameExport(
+  frame: Frame,
+  format: FrameExportFormat,
+  scale: ExportScale = 2,
+): Promise<void> {
   if (format === 'html') {
     /* The stored frame document is the design itself, so there is nothing to
        render: save it as it is. */
@@ -94,7 +101,7 @@ export async function downloadFrameExport(frame: Frame, format: FrameExportForma
   }
   inFlight += 1
   useStore.getState().pushNotice(`Exporting ${FORMAT_LABEL[format]}…`, { busy: true })
-  const outcome = await exportOutcome(frame, format)
+  const outcome = await exportOutcome(frame, format, scale)
   inFlight -= 1
   report(outcome)
 }

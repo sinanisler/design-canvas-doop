@@ -7,6 +7,7 @@ import * as t from './schema.ts'
 import { extractAssetIds } from '../assets.ts'
 import { roleByAgentName } from '../../shared/agents.ts'
 import { isCommunityCategory } from '../../shared/types.ts'
+import { byStackOrder } from '../../shared/frameOrder.ts'
 import type {
   ActivityItem,
   AgentTask,
@@ -81,6 +82,7 @@ export async function saveCanvasCopy(c: Canvas): Promise<void> {
           updatedAt: frame.updatedAt,
           updatedBy: frame.updatedBy,
           demo: frame.demo ?? null,
+          z: frame.z ?? null,
         })),
       )
     }
@@ -308,6 +310,7 @@ async function writeFrame(f: Frame) {
     updatedAt: f.updatedAt,
     updatedBy: f.updatedBy,
     demo: f.demo ?? null,
+    z: f.z ?? null,
   }
   const { id, createdAt, ...set } = row
   await db.insert(t.frames).values(row).onConflictDoUpdate({ target: t.frames.id, set })
@@ -636,8 +639,10 @@ export async function hydrate(): Promise<Hydrated> {
     if (c) (c.memberIds ??= []).push(m.userId)
   }
   for (const f of frameRows)
-    byId.get(f.canvasId)?.frames.push({ ...f, pageId: f.pageId ?? undefined, demo: f.demo ?? undefined })
-  for (const c of canvases) c.frames.sort((a, b) => a.createdAt - b.createdAt)
+    byId
+      .get(f.canvasId)
+      ?.frames.push({ ...f, pageId: f.pageId ?? undefined, demo: f.demo ?? undefined, z: f.z ?? undefined })
+  for (const c of canvases) c.frames.sort((a, b) => byStackOrder(a, b) || a.createdAt - b.createdAt)
   for (const r of referenceRows) {
     const c = byId.get(r.canvasId)
     if (!c) continue

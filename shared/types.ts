@@ -17,6 +17,9 @@ export interface Frame {
   /** product-made onboarding/example content (welcome demo, seeded frames) —
    *  not the user's work; agents must never read it as the canvas's style */
   demo?: boolean
+  /** stacking and Layers-rail order on the canvas: lower sits further back.
+   *  Unset only on frames from before ordering was stored (see the migration). */
+  z?: number
 }
 
 export interface CanvasMeta {

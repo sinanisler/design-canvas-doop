@@ -344,6 +344,25 @@ export async function inspectFrame(frame: Frame): Promise<FrameInspection> {
   }
 }
 
+/** The frame as a one-page vector PDF at the frame's own size: text stays text
+ *  and the page is the frame, with whatever spills past its edge cut off, the
+ *  same as the PNG. */
+export async function renderFramePdf(frame: Frame): Promise<Buffer> {
+  const loaded = await loadFramePage(frame)
+  try {
+    const pdf = await loaded.page.pdf({
+      width: `${Math.max(1, Math.round(frame.width))}px`,
+      height: `${Math.max(1, Math.round(frame.height))}px`,
+      printBackground: true,
+      margin: { top: 0, right: 0, bottom: 0, left: 0 },
+      pageRanges: '1',
+    })
+    return Buffer.from(pdf)
+  } finally {
+    await loaded.close()
+  }
+}
+
 export async function renderFrame(
   frame: Frame,
   /* output pixel density — fractional values downscale huge frames */

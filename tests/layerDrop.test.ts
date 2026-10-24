@@ -66,4 +66,47 @@ describe('dropLayer', () => {
     expect(dropLayer(pressed, DRAG_B, INTO_SECTION)).toBe(false)
     expect(updateFrame).not.toHaveBeenCalled()
   })
+
+  it('refuses to move a locked layer, or one inside a locked box', () => {
+    const pressed = frameWith(page('<div data-doop-locked=""><p>A</p><p>B</p></div><section></section>'))
+    holdCanvas(pressed)
+    expect(dropLayer(pressed, DRAG_B, INTO_SECTION)).toBe(false)
+    expect(useStore.getState().canvas?.frames[0]?.html).toBe(pressed.html)
+    expect(updateFrame).not.toHaveBeenCalled()
+  })
+
+  describe('into another frame', () => {
+    const other = (html: string): Frame => ({ ...frameWith(html), id: 'f2', name: 'Other' })
+
+    function holdFrames(...frames: Frame[]) {
+      const canvas: Canvas = { id: 'c1', name: 'Canvas', frames } as Canvas
+      useStore.setState({ canvas, selectedId: null, selectedIds: [], selectedElement: null })
+    }
+
+    it('moves the element out of one frame and into the other, saving both and keeping it selected', () => {
+      const from = frameWith(page('<div><p>A</p><p>B</p></div>'))
+      const into = other(page('<section></section>'))
+      holdFrames(from, into)
+      expect(dropLayer(from, DRAG_B, INTO_SECTION, into)).toBe(true)
+      const [a, b] = useStore.getState().canvas?.frames ?? []
+      expect(a?.html).toContain('<div><p>A</p></div>')
+      expect(b?.html).toContain('<section><p>B</p></section>')
+      expect(updateFrame).toHaveBeenCalledTimes(2)
+      expect(useStore.getState().selectedElement).toMatchObject({
+        frameId: 'f2',
+        selector: 'body:nth-of-type(1) > section:nth-of-type(1) > p:nth-of-type(1)',
+      })
+    })
+
+    it('drops nothing when the target frame was edited during the drag', () => {
+      const from = frameWith(page('<div><p>A</p><p>B</p></div>'))
+      const into = other(page('<section></section>'))
+      holdFrames(from, into)
+      const edited = page('<section><i>NEW</i></section>')
+      useStore.getState().patchFrameLocal(into.id, { html: edited })
+      expect(dropLayer(from, DRAG_B, INTO_SECTION, into)).toBe(false)
+      expect(useStore.getState().canvas?.frames[0]?.html).toBe(from.html)
+      expect(updateFrame).not.toHaveBeenCalled()
+    })
+  })
 })

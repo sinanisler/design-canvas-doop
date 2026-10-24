@@ -5,11 +5,14 @@ import {
   useState,
   type HTMLAttributes,
   type KeyboardEvent,
+  type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
 } from 'react'
 import type { Frame } from '../../shared/types'
+import { pageFrames } from '../../shared/pages'
 import { useStore } from '../lib/store'
+import { api } from '../lib/api'
 import { usePageCanvas } from '../lib/pages'
 import { PagesPanel } from './PagesPanel'
 import { getIdentity } from '../lib/identity'
@@ -24,7 +27,18 @@ import {
   type DropTarget,
   type LayerNode,
 } from '../lib/layers'
-import { deleteLayer, dropLayer, duplicateLayer, shiftLayer } from '../lib/layerEdits'
+import {
+  INSERT_KINDS,
+  deleteLayers,
+  dropLayer,
+  duplicateLayer,
+  groupLayers,
+  hideLayers,
+  insertLayer,
+  lockLayers,
+  shiftLayer,
+  ungroupLayers,
+} from '../lib/layerEdits'
 import { cn } from '@/lib/utils'
 import { AgentIcon } from './AgentIcon'
 import { LayerKindIcon } from './LayerKindIcon'
@@ -45,8 +59,11 @@ import {
   ChevronDownIcon,
   ChevronRightIcon,
   CollapseAllIcon,
+  EyeClosedIcon,
   FrameIcon,
+  GroupIcon,
   LayersIcon,
+  LockIcon,
   PanelCollapseIcon,
   PanelExpandIcon,
   PlusIcon,
@@ -106,8 +123,23 @@ function dropOver(row: VisibleRow, fraction: number): DropPlace {
   return 'inside'
 }
 
+/** The page's frame order with `frameId` moved to just before or after `targetId`. */
+function reorderFrameAt(ids: string[], frameId: string, targetId: string, place: 'before' | 'after'): string[] {
+  const rest = ids.filter((id) => id !== frameId)
+  const at = rest.indexOf(targetId) + (place === 'after' ? 1 : 0)
+  return [...rest.slice(0, at), frameId, ...rest.slice(at)]
+}
+
 function targetOf(row: VisibleRow, place: DropPlace): DropTarget {
   return { selector: row.kind === 'frame' ? 'body' : row.node.selector, place }
+}
+
+/** The canvas frame under the pointer, while a layer is dragged over the stage.
+ *  Frames are marked with their id; the iframe inside one counts too. */
+function canvasFrameAt(x: number, y: number): Frame | null {
+  const id = document.elementFromPoint(x, y)?.closest<HTMLElement>('[data-frame-id]')?.dataset.frameId
+  if (!id) return null
+  return useStore.getState().canvas?.frames.find((f) => f.id === id) ?? null
 }
 
 function visibleRows(frames: Frame[], query: string, expanded: Set<string>): VisibleRow[] {
@@ -148,8 +180,12 @@ export function LayersPanel({ onAddFrame }: { onAddFrame: () => void }) {
      through a ref rather than a stale closure */
   const [drag, setDrag] = useState<NodeVisibleRow | null>(null)
   const [drop, setDrop] = useState<{ key: string; place: DropPlace } | null>(null)
+  /* the frame being dragged to a new place in the rail's order */
+  const [frameDrag, setFrameDrag] = useState<string | null>(null)
   const rowsRef = useRef<VisibleRow[]>([])
   const didDrag = useRef(false)
+  /* the layers marked with ⌘- or ⇧-click: menus and keys act on them together */
+  const [marked, setMarked] = useState<string[]>([])
 
   /* the selected frame opens on its own, and a selection made inside a frame
      opens every row above it — derived from the selection during render, not
@@ -197,15 +233,37 @@ export function LayersPanel({ onAddFrame }: { onAddFrame: () => void }) {
     const s = useStore.getState()
     s.select(row.frame.id)
     s.pickElement(row.kind === 'node' ? { frameId: row.frame.id, selector: row.node.selector } : null)
+    setMarked([])
   }
 
-  /* the drop under the pointer: a row of the dragged element's frame that is
-     neither the element itself nor inside it */
+  /* ⌘- or ⇧-click toggles a layer's mark; marks only ever span one frame */
+  function toggleMark(row: NodeVisibleRow) {
+    setMarked((prev) => {
+      /* the layer already picked is the anchor: the first ⌘-click adds to it */
+      const picked = selectedElement?.frameId === row.frame.id ? [rowKey(row.frame.id, selectedElement.selector)] : []
+      const seed = prev.length ? prev : picked
+      const sameFrame = seed.every((key) => key.startsWith(`${row.frame.id}|`))
+      const base = sameFrame ? seed : []
+      return base.includes(row.key) ? base.filter((key) => key !== row.key) : [...base, row.key]
+    })
+  }
+
+  /* what a menu or key acts on: the marked layers of this row's frame when
+     this row is one of them, otherwise the row alone */
+  function targetsOf(row: NodeVisibleRow): string[] {
+    if (!marked.includes(row.key)) return [row.node.selector]
+    return rows.flatMap((r) =>
+      r.kind === 'node' && r.frame.id === row.frame.id && marked.includes(r.key) ? [r.node.selector] : [],
+    )
+  }
+
+  /* the drop under the pointer: any row a layer can land beside or in, in
+     any frame — but never the element itself, nor a node inside it */
   function dropAt(dragged: NodeVisibleRow, x: number, y: number) {
     const el = document.elementFromPoint(x, y)?.closest<HTMLElement>('[data-row-key]')
     const row = el ? rowsRef.current.find((r) => r.key === el.dataset.rowKey) : undefined
-    if (!row || !el || row.frame.id !== dragged.frame.id || row.key === dragged.key) return null
-    if (row.kind === 'node' && holds(dragged.node, row.node.selector)) return null
+    if (!row || !el || row.key === dragged.key) return null
+    if (row.kind === 'node' && row.frame.id === dragged.frame.id && holds(dragged.node, row.node.selector)) return null
     const rect = el.getBoundingClientRect()
     return { key: row.key, place: dropOver(row, (y - rect.top) / rect.height) }
   }
@@ -227,6 +285,7 @@ export function LayersPanel({ onAddFrame }: { onAddFrame: () => void }) {
       window.removeEventListener('pointercancel', onCancel)
       setDrag(null)
       setDrop(null)
+      useStore.getState().setLayerDropFrameId(null)
     }
     const onMove = (ev: PointerEvent) => {
       if (!active) {
@@ -240,7 +299,10 @@ export function LayersPanel({ onAddFrame }: { onAddFrame: () => void }) {
         if (ev.clientY < rect.top + 24) body.scrollBy(0, -8)
         else if (ev.clientY > rect.bottom - 24) body.scrollBy(0, 8)
       }
-      setDrop(dropAt(row, ev.clientX, ev.clientY))
+      const hit = dropAt(row, ev.clientX, ev.clientY)
+      setDrop(hit)
+      /* over the stage rather than a row, a frame takes the layer as its first child */
+      useStore.getState().setLayerDropFrameId(hit ? null : (canvasFrameAt(ev.clientX, ev.clientY)?.id ?? null))
     }
     const onUp = (ev: PointerEvent) => {
       const wasActive = active
@@ -248,12 +310,65 @@ export function LayersPanel({ onAddFrame }: { onAddFrame: () => void }) {
       if (!wasActive) return
       const target = dropAt(row, ev.clientX, ev.clientY)
       const over = target && rowsRef.current.find((r) => r.key === target.key)
-      if (over && target) dropLayer(row.frame, row.node.selector, targetOf(over, target.place))
+      if (over && target) dropLayer(row.frame, row.node.selector, targetOf(over, target.place), over.frame)
+      else {
+        const canvasFrame = canvasFrameAt(ev.clientX, ev.clientY)
+        if (canvasFrame) dropLayer(row.frame, row.node.selector, { selector: 'body', place: 'inside' }, canvasFrame)
+      }
     }
     const onCancel = () => finish()
     window.addEventListener('pointermove', onMove)
     window.addEventListener('pointerup', onUp)
     window.addEventListener('pointercancel', onCancel)
+  }
+
+  /* a press on a frame row drags it in the rail's order: the line lands above
+     or below another frame, and the release sends the page's new order to the
+     room. Frames stack back to front in that order. */
+  function onFramePointerDown(e: ReactPointerEvent<HTMLDivElement>, row: Extract<VisibleRow, { kind: 'frame' }>) {
+    if (e.button !== 0) return
+    const start = { x: e.clientX, y: e.clientY }
+    let active = false
+    const frameDropAt = (x: number, y: number) => {
+      const el = document.elementFromPoint(x, y)?.closest<HTMLElement>('[data-row-key]')
+      const target = el ? rowsRef.current.find((r) => r.key === el.dataset.rowKey) : undefined
+      if (!el || !target || target.kind !== 'frame' || target.frame.id === row.frame.id) return null
+      const rect = el.getBoundingClientRect()
+      const place: 'before' | 'after' = (y - rect.top) / rect.height < 0.5 ? 'before' : 'after'
+      return { key: target.key, place, frameId: target.frame.id }
+    }
+    const finish = () => {
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerup', onUp)
+      window.removeEventListener('pointercancel', finish)
+      setFrameDrag(null)
+      setDrop(null)
+    }
+    const onMove = (ev: PointerEvent) => {
+      if (!active) {
+        if (Math.hypot(ev.clientX - start.x, ev.clientY - start.y) < DRAG_THRESHOLD) return
+        active = true
+        didDrag.current = true
+        setFrameDrag(row.frame.id)
+      }
+      setDrop(frameDropAt(ev.clientX, ev.clientY))
+    }
+    const onUp = (ev: PointerEvent) => {
+      const wasActive = active
+      const target = frameDropAt(ev.clientX, ev.clientY)
+      finish()
+      const canvas = useStore.getState().canvas
+      const pageId = useStore.getState().activePageId
+      if (!wasActive || !target || !canvas || !pageId) return
+      const ids = pageFrames(canvas, pageId).map((f) => f.id)
+      const order = reorderFrameAt(ids, row.frame.id, target.frameId, target.place)
+      if (order.join('|') === ids.join('|')) return
+      useStore.getState().reorderFramesLocal(order)
+      api.reorderFrames(canvas.id, pageId, order).catch(console.error)
+    }
+    window.addEventListener('pointermove', onMove)
+    window.addEventListener('pointerup', onUp)
+    window.addEventListener('pointercancel', finish)
   }
 
   /* ↑↓ walk the visible rows, ⌥↑↓ move the selected layer among its
@@ -269,6 +384,14 @@ export function LayersPanel({ onAddFrame }: { onAddFrame: () => void }) {
     }
     const shift = (dir: 1 | -1) => {
       if (row?.kind === 'node') shiftLayer(row.frame, row.node.selector, dir)
+    }
+    /* ⌘G groups the marked layers, ⇧⌘G ungroups the groups among them */
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'g' && row?.kind === 'node') {
+      e.preventDefault()
+      const targets = targetsOf(row)
+      if (e.shiftKey) ungroupLayers(row.frame, targets)
+      else if (targets.length > 1) groupLayers(row.frame, targets)
+      return
     }
     switch (e.key) {
       case 'ArrowDown':
@@ -299,7 +422,7 @@ export function LayersPanel({ onAddFrame }: { onAddFrame: () => void }) {
            be next, so only the first press deletes */
         if (e.repeat) break
         if (row?.kind === 'frame') deleteFramesTracked([row.frame])
-        else if (row) deleteLayer(row.frame, row.node.selector)
+        else if (row) deleteLayers(row.frame, targetsOf(row))
         break
       default:
         return
@@ -377,6 +500,12 @@ export function LayersPanel({ onAddFrame }: { onAddFrame: () => void }) {
             role="tree"
             tabIndex={0}
             onKeyDown={onKeyDown}
+            /* every press starts a new gesture: a drag released off the list
+               leaves no click here to clear the flag, and must not swallow
+               the next one */
+            onPointerDownCapture={() => {
+              didDrag.current = false
+            }}
             onClickCapture={(e) => {
               if (!didDrag.current) return
               didDrag.current = false
@@ -400,6 +529,8 @@ export function LayersPanel({ onAddFrame }: { onAddFrame: () => void }) {
                   row={row}
                   selected={row.frame.id === selectedId && !selectedElement}
                   current={row.frame.id === selectedId}
+                  dragging={frameDrag === row.frame.id}
+                  onPointerDown={(e) => onFramePointerDown(e, row)}
                   drop={drop?.key === row.key ? drop.place : undefined}
                   onToggle={() => setOpen(row.key, !row.open)}
                   onActivate={() => activate(row)}
@@ -414,6 +545,9 @@ export function LayersPanel({ onAddFrame }: { onAddFrame: () => void }) {
                   onToggle={() => setOpen(row.key, !row.open)}
                   onActivate={() => activate(row)}
                   onPointerDown={(e) => onRowPointerDown(e, row)}
+                  marked={marked.includes(row.key)}
+                  targets={targetsOf(row)}
+                  onMark={() => toggleMark(row)}
                 />
               ),
             )}
@@ -481,17 +615,21 @@ function FrameRow({
   row,
   selected,
   current,
+  dragging,
   drop,
   onToggle,
   onActivate,
+  onPointerDown,
 }: {
   row: Extract<VisibleRow, { kind: 'frame' }>
   selected: boolean
   /** the frame is selected, whether or not an element inside it is */
   current: boolean
+  dragging: boolean
   drop?: DropPlace
   onToggle: () => void
   onActivate: () => void
+  onPointerDown: (e: ReactPointerEvent<HTMLDivElement>) => void
 }) {
   const { frame } = row
   const stream = useStore((s) => s.streams[frame.id])
@@ -514,7 +652,12 @@ function FrameRow({
             onCaret={onToggle}
             icon={<FrameIcon width={13} height={13} />}
             label={frame.name}
-            className={cn('font-semibold', current && !selected && 'text-brand [&_[data-icon]]:text-brand')}
+            className={cn(
+              'font-semibold',
+              current && !selected && 'text-brand [&_[data-icon]]:text-brand',
+              dragging && 'opacity-40',
+            )}
+            onPointerDown={onPointerDown}
             selected={selected}
             onClick={onActivate}
             onDoubleClick={() => useStore.getState().requestFlyTo(frame.id)}
@@ -552,20 +695,28 @@ function NodeRow({
   selected,
   dragging,
   drop,
+  marked,
+  targets,
   onToggle,
   onActivate,
+  onMark,
   onPointerDown,
 }: {
   row: NodeVisibleRow
   selected: boolean
   dragging: boolean
   drop?: DropPlace
+  marked: boolean
+  /** the layers a menu acts on: every marked layer, or this row alone */
+  targets: string[]
   onToggle: () => void
   onActivate: () => void
+  onMark: () => void
   onPointerDown: (e: ReactPointerEvent<HTMLDivElement>) => void
 }) {
   const { frame, node } = row
   const hasChildren = node.children.length > 0
+  const many = targets.length > 1
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild>
@@ -575,41 +726,79 @@ function NodeRow({
           drop={drop}
           caret={<Caret open={row.open} present={hasChildren} />}
           onCaret={hasChildren ? onToggle : undefined}
-          icon={<LayerKindIcon kind={node.kind} />}
+          icon={node.group ? <GroupIcon width={13} height={13} /> : <LayerKindIcon kind={node.kind} />}
           label={node.label}
           detail={node.detail}
           selected={selected}
-          className={cn(dragging && 'opacity-40')}
-          onClick={onActivate}
-          onContextMenu={onActivate}
+          className={cn(dragging && 'opacity-40', node.hidden && 'opacity-50', marked && !selected && 'bg-brand/10')}
+          trailing={
+            node.hidden || node.locked ? (
+              <>
+                {node.hidden && <EyeClosedIcon width={12} height={12} className="text-ink-faint" />}
+                {node.locked && <LockIcon width={12} height={12} className="text-ink-faint" />}
+              </>
+            ) : undefined
+          }
+          onClick={(e) => (e.metaKey || e.ctrlKey || e.shiftKey ? onMark() : onActivate())}
+          /* a right-click on a marked layer keeps the marks: the menu acts on them */
+          onContextMenu={marked ? undefined : onActivate}
           onPointerDown={onPointerDown}
         />
       </ContextMenuTrigger>
       <ContextMenuContent>
-        <ContextMenuItem
-          onSelect={() => {
-            const html = elementHtml(frame.html, node.selector)
-            if (html) navigator.clipboard.writeText(html).catch(console.error)
-          }}
-        >
-          Copy HTML
+        {!many && (
+          <>
+            <ContextMenuItem
+              onSelect={() => {
+                const html = elementHtml(frame.html, node.selector)
+                if (html) navigator.clipboard.writeText(html).catch(console.error)
+              }}
+            >
+              Copy HTML
+            </ContextMenuItem>
+            <ContextMenuItem onSelect={() => navigator.clipboard.writeText(node.selector).catch(console.error)}>
+              Copy selector
+            </ContextMenuItem>
+            <ContextMenuItem onSelect={() => duplicateLayer(frame, node.selector)}>Duplicate</ContextMenuItem>
+            <ContextMenuSeparator />
+            <ContextMenuItem onSelect={() => shiftLayer(frame, node.selector, -1)}>
+              Move up
+              <MenuHint>⌥↑</MenuHint>
+            </ContextMenuItem>
+            <ContextMenuItem onSelect={() => shiftLayer(frame, node.selector, 1)}>
+              Move down
+              <MenuHint>⌥↓</MenuHint>
+            </ContextMenuItem>
+            <ContextMenuSeparator />
+          </>
+        )}
+        <ContextMenuItem onSelect={() => hideLayers(frame, targets, !node.hidden)}>
+          {node.hidden ? 'Show' : 'Hide'}
         </ContextMenuItem>
-        <ContextMenuItem onSelect={() => navigator.clipboard.writeText(node.selector).catch(console.error)}>
-          Copy selector
+        <ContextMenuItem onSelect={() => lockLayers(frame, targets, !node.locked)}>
+          {node.locked ? 'Unlock' : 'Lock'}
         </ContextMenuItem>
-        <ContextMenuItem onSelect={() => duplicateLayer(frame, node.selector)}>Duplicate</ContextMenuItem>
+        {many && (
+          <ContextMenuItem onSelect={() => groupLayers(frame, targets)}>
+            Group
+            <MenuHint>⌘G</MenuHint>
+          </ContextMenuItem>
+        )}
+        {node.group && (
+          <ContextMenuItem onSelect={() => ungroupLayers(frame, targets)}>
+            Ungroup
+            <MenuHint>⇧⌘G</MenuHint>
+          </ContextMenuItem>
+        )}
         <ContextMenuSeparator />
-        <ContextMenuItem onSelect={() => shiftLayer(frame, node.selector, -1)}>
-          Move up
-          <MenuHint>⌥↑</MenuHint>
-        </ContextMenuItem>
-        <ContextMenuItem onSelect={() => shiftLayer(frame, node.selector, 1)}>
-          Move down
-          <MenuHint>⌥↓</MenuHint>
-        </ContextMenuItem>
+        {INSERT_KINDS.map(([kind, label]) => (
+          <ContextMenuItem key={kind} onSelect={() => insertLayer(frame, node.selector, kind)}>
+            Insert {label.toLowerCase()} after
+          </ContextMenuItem>
+        ))}
         <ContextMenuSeparator />
-        <ContextMenuItem tone="danger" onSelect={() => deleteLayer(frame, node.selector)}>
-          Delete element
+        <ContextMenuItem tone="danger" onSelect={() => deleteLayers(frame, targets)}>
+          {many ? `Delete ${targets.length} layers` : 'Delete element'}
           <MenuHint>⌫</MenuHint>
         </ContextMenuItem>
       </ContextMenuContent>
@@ -631,7 +820,7 @@ type RowProps = Omit<HTMLAttributes<HTMLDivElement>, 'onClick'> & {
   /** where a dragged layer would land on this row */
   drop?: DropPlace
   trailing?: ReactNode
-  onClick: () => void
+  onClick: (e: ReactMouseEvent<HTMLDivElement>) => void
 }
 
 function Row({

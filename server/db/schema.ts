@@ -164,6 +164,8 @@ export const frames = pgTable(
     updatedBy: text('updated_by').notNull(),
     /** product-made onboarding/example content; null = a real user frame */
     demo: boolean('demo'),
+    /** back-to-front stacking order on the canvas (see shared/frameOrder.ts) */
+    z: doublePrecision('z'),
   },
   (t) => [index('frames_canvas_idx').on(t.canvasId)],
 )

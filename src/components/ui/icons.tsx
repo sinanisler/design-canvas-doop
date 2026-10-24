@@ -13,6 +13,8 @@ import {
   ChatBubble,
   Building,
   CreditCard,
+  Eye,
+  EyeClosed,
   Lock,
   Clock,
   Attachment,
@@ -122,6 +124,9 @@ export const BrainIcon = icon(Brain)
 export const BuildingIcon = icon(Building)
 export const CreditCardIcon = icon(CreditCard)
 export const LockIcon = icon(Lock)
+export const EyeIcon = icon(Eye)
+export const EyeClosedIcon = icon(EyeClosed)
+export const GroupIcon = icon(Group)
 export const DesktopIcon = icon(Computer)
 export const DownloadIcon = icon(Download)
 export const PuzzleIcon = icon(Puzzle)
