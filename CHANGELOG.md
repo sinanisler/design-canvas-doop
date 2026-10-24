@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.9.0](https://github.com/sinanisler/design-canvas-doop/compare/v0.8.0...v0.9.0) (2026-10-24)
+
+
+### Features
+
+* configurable PGlite data dir for hostinger ([854ecc1](https://github.com/sinanisler/design-canvas-doop/commit/854ecc1607de97065dee03f77d15a7a4c2307eb0))
+* frame export improvements ([282cb2a](https://github.com/sinanisler/design-canvas-doop/commit/282cb2a609e6e7de2d4cc4e4960351477dffc8ad))
+* hideable agent prompt bar, paste images into selected frame ([807935a](https://github.com/sinanisler/design-canvas-doop/commit/807935af89d71d9d8b52c3c3d2b0880cd026cd53))
+* move layers across frames and edit elements on the canvas ([957f1e2](https://github.com/sinanisler/design-canvas-doop/commit/957f1e23beb6392fe2bbfe86d6df16acf93ba143))
+
+
+### Bug Fixes
+
+* **deploy:** make npm installs succeed first try and document the Hostinger 403 ([392ca03](https://github.com/sinanisler/design-canvas-doop/commit/392ca0371790d202158524ed27332a06d6b315ed))
+* **security:** send baseline security headers and drop X-Powered-By ([3a37983](https://github.com/sinanisler/design-canvas-doop/commit/3a37983f0a20daf12cf9ed2bec29518489582bea))
+
 ## [0.8.0](https://github.com/kgoedecke/doop/compare/v0.7.0...v0.8.0) (2026-10-13)
 
 
