@@ -122,7 +122,9 @@ async function boot(env: Record<string, string>, reuseDir: string | undefined, t
       stopped,
       stop({ keepData }: { keepData?: boolean } = {}) {
         killTree(proc)
-        if (!keepData) rmSync(dataDir, { recursive: true, force: true })
+        /* taskkill returns before Windows releases the killed server's PGlite
+           files, so removal retries EPERM/EBUSY rather than failing the suite */
+        if (!keepData) rmSync(dataDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 })
       },
     }
   }

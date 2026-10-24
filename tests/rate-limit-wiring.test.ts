@@ -76,5 +76,5 @@ describe('configurable tool rate limits', () => {
     } finally {
       await close()
     }
-  })
+  }, 30_000)
 })
